@@ -21,17 +21,17 @@ You need to specify the `XDG_RUNTIME_DIR` and `DISPLAY` environment variables to
 ## Usage
 
 You can deploy the service as root on non root.
+Depending on your device distance with your computer, it will (un)lock your computer.
+Simply retrieve your device MAC_ADDRESS by connecting it via bluetooth and launch the service.
 
 ### Non root
 
-### Config
+#### Config
 
 Create a config file in `$HOME/.config/systemd/user/ble_rssi_lock/config.ini`
-
 ```shell
 sudo nano $HOME/.config/systemd/user/ble_rssi_lock/config.ini
 ```
-
 with this content:
 ```ini
 [Service]
@@ -53,6 +53,8 @@ max_timestamp=2
 ```
 Replace `PHONE_MAC_ADDRESS` by the mac address of your phone you can find when connecting phone to bluetooth.
 You can modify rssi and timestamp variables to your needs.
+
+#### Script
 
 Create the python script in `/usr/local/bin/ble_rssi_lock.py` with this content:
 ```python
@@ -147,13 +149,14 @@ async def main():
 asyncio.run(main())
 ```
 
-Create a service file in `$HOME/.config/systemd/user/ble_rssi_lock.service`:
+#### Service
 
+Create a service file in `$HOME/.config/systemd/user/ble_rssi_lock.service`:
 ```shell
 sudo nano $HOME/.config/systemd/user/ble_rssi_lock.service
 ```
 with this content
-```shell
+```service
 [Unit]
 Description=BLE rssi autolock
 
@@ -169,14 +172,12 @@ Restart=always
 WantedBy=default.target
 ```
 
-Launch the service
-
+Launch the service:
 ```shell
 systemctl --user daemon-reload
 systemctl --user enable --now ble_rssi_lock.service
 systemctl --user restart ble_rssi_lock.service
 ```
-
 Display logs:
 ```shell
 journalctl --user -u ble_rssi_lock.service -f
@@ -184,14 +185,14 @@ journalctl --user -u ble_rssi_lock.service -f
 
 ### Root
 
-### Config
+#### Config
 
 Create a config file in `/etc/ble_rssi_lock/config.ini`
+
 
 ```shell
 sudo nano /etc/ble_rssi_lock/config.ini
 ```
-
 with this content:
 ```ini
 [Service]
@@ -213,6 +214,8 @@ max_timestamp=2
 ```
 Replace `PHONE_MAC_ADDRESS` by the mac address of your phone you can find when connecting phone to bluetooth.
 You can modify rssi and timestamp variables to your needs.
+
+#### Script
 
 Create the python script in `/usr/bin/ble_rssi_lock.py` with this content:
 ```python
@@ -307,14 +310,14 @@ async def main():
 asyncio.run(main())
 ```
 
-Create a service file in `/etc/systemd/system/ble_rssi_lock.service`:
+#### Service
 
+Create a service file in `/etc/systemd/system/ble_rssi_lock.service`:
 ```shell
 sudo nano /etc/systemd/system/ble_rssi_lock.service
 ```
-
 with this content
-```shell
+```service
 [Unit]
 Description=BLE rssi autolock
 
@@ -330,9 +333,7 @@ User=$USER
 [Install]
 WantedBy=multi-user.target
 ```
-
 Launch the service
-
 ```shell
 sudo systemctl daemon-reload
 sudo systemctl enable ble_rssi_lock.service
@@ -344,7 +345,7 @@ Display logs:
 journalctl --user -u ble_rssi_lock.service -f
 ```
 
-TODO:
+## TODO:
 
 - support different screensavers
 ```shell
