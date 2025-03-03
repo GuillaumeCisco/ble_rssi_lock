@@ -1,0 +1,16 @@
+# [Service]
+mac_address=2C:A7:EF:D9:6C:36
+period=0.5
+
+# Min distance and time before unlocking
+ # ~50cm
+min_rssi=-65
+# in seconds
+min_timestamp=0.5
+
+
+# Max distance and time before locking
+# ~5m
+max_rssi=-80
+# in seconds
+max_timestamp=2
