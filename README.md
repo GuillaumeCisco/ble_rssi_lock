@@ -12,6 +12,12 @@ sudo apt-get install libsystemd-dev
 pip install -r requirements.txt
 ```
 
+The only very important dependency is `bleak` which is a python library for bluetooth low energy.
+Also, you might think python code are the same between root and non root but it's not the case.
+The main difference is the way to lock/unlock the screen. You can't use `xfce4-screensaver-command` as root.
+You need to specify the `XDG_RUNTIME_DIR` and `DISPLAY` environment variables to make it work.
+
+
 ## Usage
 
 You can deploy the service as root on non root.
@@ -336,4 +342,51 @@ sudo systemctl restart ble_rssi_lock.service
 Display logs:
 ```shell
 journalctl --user -u ble_rssi_lock.service -f
+```
+
+TODO:
+
+- support different screensavers
+```shell
+screensavers = {
+  'GNOME': 'gnome-screensaver',
+  'MATE': 'mate-screensaver-command',
+  'XSCREENSAVER': 'xscreensaver',
+  'XFCE4SCREENSAVERCOMMANDLOCK': 'xfce4-screensaver-command --lock'
+}
+```
+- Make code more dynamic giving root/non root
+- Make service more dynamic by putting the mac address directly inside the service.
+
+```shell
+To use the MAC address from the service file name as an argument, you can use a systemd template service. Here is how you can do it:
+
+1. Create a template service file named `ble_rssi_lock@.service`:
+
+sudo nano $HOME/.config/systemd/user/ble_rssi_lock@.service
+
+2. Update the content of the template service file to use the MAC address as an argument:
+
+[Unit]
+Description=BLE rssi autolock for %I
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/ble_rssi_lock.py %I
+WorkingDirectory=$HOME
+Environment=CONFIG_PATH=.config/systemd/user/ble_rssi_lock/config.ini
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+
+[Install]
+WantedBy=default.target
+
+3. Enable and start the service with the MAC address:
+
+
+systemctl --user enable --now ble_rssi_lock@<MAC_ADDRESS>.service
+systemctl --user restart ble_rssi_lock@<MAC_ADDRESS>.service
+
+
+In this setup, `%I` is a placeholder that systemd replaces with the instance name (the MAC address in this case). The Python script can then retrieve this argument using `sys.argv[1]`.
 ```
