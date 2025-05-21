@@ -164,7 +164,7 @@ Description=BLE rssi autolock
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/local/bin/ble_rssi_lock.py
-WorkingDirectory=$HOME
+WorkingDirectory=%h
 Environment=CONFIG_PATH=.config/systemd/user/ble_rssi_lock/config.ini
 StandardOutput=inherit
 StandardError=inherit
