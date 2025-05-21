@@ -8,8 +8,7 @@ Tools for (un)locking unix based computer with bluetooth rssi distance range.
 - Python 3.12
 
 ```shell
-sudo apt-get install libsystemd-dev
-sudo apt-get install python3-dev
+sudo apt-get install libsystemd-dev python3-dev
 pip install -r requirements.txt
 ```
 
@@ -22,16 +21,18 @@ You need to specify the `XDG_RUNTIME_DIR` and `DISPLAY` environment variables to
 ## Usage
 
 You can deploy the service as root on non root.
-Depending on your device distance with your computer, it will (un)lock your computer.
-Simply retrieve your device MAC_ADDRESS by connecting it via bluetooth and launch the service.
 
-### Non root
+Depending on your device distance with your computer, it will (un)lock your computer.
+
+Simply retrieve your device `MAC_ADDRESS` by connecting it via bluetooth and launch the service.
+
+### Non root (recommended)
 
 #### Config
 
 Create a config file in `$HOME/.config/systemd/user/ble_rssi_lock/config.ini`
 ```shell
-sudo nano $HOME/.config/systemd/user/ble_rssi_lock/config.ini
+nano $HOME/.config/systemd/user/ble_rssi_lock/config.ini
 ```
 with this content:
 ```ini
@@ -154,7 +155,7 @@ asyncio.run(main())
 
 Create a service file in `$HOME/.config/systemd/user/ble_rssi_lock.service`:
 ```shell
-sudo nano $HOME/.config/systemd/user/ble_rssi_lock.service
+nano $HOME/.config/systemd/user/ble_rssi_lock.service
 ```
 with this content
 ```service
