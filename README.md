@@ -9,6 +9,7 @@ Tools for (un)locking unix based computer with bluetooth rssi distance range.
 
 ```shell
 sudo apt-get install libsystemd-dev
+sudo apt-get install python3-dev
 pip install -r requirements.txt
 ```
 
