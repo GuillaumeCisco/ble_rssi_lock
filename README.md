@@ -5,14 +5,49 @@ Tools for (un)locking unix based computer with bluetooth rssi distance range.
 
 ## Requirements
 
-- Python 3.12
+- Python 3.12 or newer (verified on Python 3.14)
+- BlueZ and a working Bluetooth adapter (`bluez`)
+- `xfce4-screensaver-command` (`xfce4-screensaver`)
+
+### Install the dependencies
+
+The systemd units below always run `/usr/bin/python3`, so the dependencies must be importable
+by the **system** interpreter: having them in a virtualenv is not enough.
+
+On Debian/Ubuntu, the simplest route is the distribution packages:
+
+```shell
+sudo apt-get install python3-bleak python3-systemd
+```
+
+The only very important dependency is `bleak`, a python library for bluetooth low energy,
+packaged as `python3-bleak`. `python3-systemd` provides
+`systemd.journal.JournalHandler`, which the script uses to write into the journal.
+
+With pip instead:
 
 ```shell
 sudo apt-get install libsystemd-dev python3-dev
-pip install -r requirements.txt
+pip install --user --break-system-packages -r requirements.txt
 ```
 
-The only very important dependency is `bleak` which is a python library for bluetooth low energy.
+`systemd-python` only ships as a source distribution, hence the two `-dev` packages. On recent
+Debian/Ubuntu releases the system interpreter is marked "externally managed" (PEP 668), so pip
+refuses to touch it without `--break-system-packages`; `--user` installs into `~/.local`, which
+`/usr/bin/python3` does read.
+
+Prefer a virtualenv? Then `ExecStart` has to point at its interpreter, otherwise the service
+dies immediately with `ModuleNotFoundError: No module named 'bleak'`:
+
+```ini
+ExecStart=/path/to/venv/bin/python /usr/local/bin/ble_rssi_lock.py
+```
+
+Leave `bleak` unpinned (`bleak>=1.0`). `bleak==0.22.3` declares `Requires-Python <3.14` and
+cannot even be installed on a current interpreter. `bleak` 1.0 dropped `BLEDevice.rssi`, but
+the script reads `AdvertisementData.rssi` through `discovered_devices_and_advertisement_data`,
+so it works from 0.22 up to 3.x.
+
 Also, you might think python code are the same between root and non root but it's not the case.
 The main difference is the way to lock/unlock the screen. You can't use `xfce4-screensaver-command` as root.
 You need to specify the `XDG_RUNTIME_DIR` and `DISPLAY` environment variables to make it work.
@@ -25,6 +60,10 @@ You can deploy the service as root on non root.
 Depending on your device distance with your computer, it will (un)lock your computer.
 
 Simply retrieve your device `MAC_ADDRESS` by connecting it via bluetooth and launch the service.
+
+`MAC_ADDRESS` must be the address your phone advertises over Bluetooth Low Energy, which is not
+always the address the desktop bluetooth applet shows. If the service runs but never logs a
+`rssi:` line, see [Find the right MAC address](#find-the-right-mac-address).
 
 ### Non root (recommended)
 
@@ -185,6 +224,10 @@ Display logs:
 journalctl --user -u ble_rssi_lock.service -f
 ```
 
+The script reads `config.ini` once at startup, so restart the unit after every config change.
+If a previous crash left the unit in a failed state, `systemctl --user restart` is not enough:
+see [`Start request repeated too quickly`](#start-request-repeated-too-quickly).
+
 ### Root
 
 #### Config
@@ -325,16 +368,20 @@ Description=BLE rssi autolock
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/bin/ble_rssi_lock.py
-WorkingDirectory=$HOME
+WorkingDirectory=%h
 Environment=CONFIG_PATH=/etc/ble_rssi_lock/config.ini
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
-User=$USER
+User=yourusername
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+Unit files do not expand shell variables: `User=` needs a real user name, and `%h` is the
+systemd specifier for the home directory of that user.
+
 Launch the service
 ```shell
 sudo systemctl daemon-reload
@@ -344,8 +391,76 @@ sudo systemctl restart ble_rssi_lock.service
 
 Display logs:
 ```shell
-journalctl --user -u ble_rssi_lock.service -f
+journalctl -u ble_rssi_lock.service -f
 ```
+
+This is a system unit, so it logs to the system journal: drop the `--user` flag you use for the
+non root deployment.
+
+## Troubleshooting
+
+### The service fails with `ModuleNotFoundError: No module named 'bleak'`
+
+The dependencies live somewhere `/usr/bin/python3` cannot see, usually a virtualenv. Install
+them for the system interpreter, or point `ExecStart` at the interpreter of the virtualenv.
+`python3 -c "import bleak"` is the quickest way to check what the interpreter the unit runs can
+actually import.
+
+### `Start request repeated too quickly`
+
+`Restart=always` combined with a script that exits right away burns the restart budget, and then
+systemd refuses to start the unit again even once the real cause is fixed. Reset the counter
+before restarting:
+
+```shell
+systemctl --user reset-failed ble_rssi_lock.service
+systemctl --user restart ble_rssi_lock.service
+```
+
+### The unit is active but the journal shows no `rssi:` line
+
+The script logs one line per reading, every `period` seconds, and only while it sees the
+configured address. Nothing at all means the scanner never matches `mac_address`. The adapter is
+rarely the suspect here; `hciconfig -a` should show `UP RUNNING`.
+
+#### Find the right MAC address
+
+`mac_address` must be the address the phone advertises over BLE, spelled exactly the way BlueZ
+reports it: the script compares plain strings with `==`, so uppercase and colon separated.
+
+Read the address in a bluetooth manager (`blueman-manager` device properties, or
+`bluetoothctl devices`) and look at `AddressType`:
+
+- `public`: stable, safe to configure.
+- `random`: most phones rotate resolvable private addresses, so the entry stops being refreshed
+  and the lock/unlock logic stays stuck on the last reading.
+
+Then check what the scanner really receives:
+
+```shell
+timeout 25 python3 -c "
+import asyncio
+from bleak import BleakScanner
+async def main():
+    seen = await BleakScanner.discover(timeout=20, return_adv=True)
+    for address, (device, adv) in sorted(seen.items(), key=lambda kv: -kv[1][1].rssi):
+        print(f'{address}  rssi={adv.rssi}  name={device.name}')
+asyncio.run(main())
+"
+```
+
+If the phone shows up under another address, that is the address to configure.
+
+### `AttributeError: 'BLEDevice' object has no attribute 'rssi'`
+
+`bleak` 1.0 removed `BLEDevice.rssi`. Read the value on the advertisement data instead:
+`BleakScanner.discover(timeout=20, return_adv=True)` returns `{address: (BLEDevice,
+AdvertisementData)}` and `AdvertisementData.rssi` holds the current reading.
+
+### `The unit file, source configuration file or drop-ins ... changed on disk`
+
+Run `systemctl --user daemon-reload`, or `sudo systemctl daemon-reload` for the root unit, after
+editing a unit file.
 
 ## TODO:
 
