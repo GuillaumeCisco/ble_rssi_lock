@@ -1,3 +1,2 @@
-bleak==0.22.3
-systemd==0.17.1
+bleak>=1.0
 systemd-python==235
